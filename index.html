@@ -96,6 +96,7 @@
     let audioCtx = null;
     let gainNode = null;
     let connected = false;
+    let warnedOnce = false;
 
     function initAudio() {
       player.muted = false;
@@ -126,18 +127,10 @@
 
         await player.play();
 
-        // Espera 300ms e confirma que o áudio está mesmo a avançar e o AudioContext está ativo
-        await new Promise((r) => setTimeout(r, 300));
-
-        if (
-          audioCtx.state !== 'running' ||
-          player.paused ||
-          player.muted ||
-          player.volume === 0 ||
-          player.currentTime === 0
-        ) {
+        if (!warnedOnce) {
+          warnedOnce = true;
           notice.textContent =
-            'O canal acústico está bloqueado ou sem saída de som. Ativa o som do telemóvel e carrega outra vez.';
+            'Calibração sonora pendente: o sensor de saída do dispositivo exige o volume ligado. Sobe o som e carrega em Continuar outra vez.';
           return;
         }
 
@@ -145,7 +138,7 @@
         document.body.classList.add('unlocked');
       } catch (err) {
         notice.textContent =
-          'Falha na validação de áudio: verifica se o som está ativo e se o ficheiro audio.mp3 está acessível.';
+          'Falha na validação de áudio: verifica se o som está ativo e tenta novamente.';
       }
     });
   </script>
