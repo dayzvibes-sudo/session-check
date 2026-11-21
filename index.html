@@ -27,18 +27,9 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 16px;
+      gap: 14px;
       padding: 20px;
       text-align: center;
-    }
-
-    .sound-check {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 0.95rem;
-      color: #ddd;
-      cursor: pointer;
     }
 
     #start-btn {
@@ -84,11 +75,6 @@
 </head>
 <body>
   <div id="start-screen">
-    <label class="sound-check">
-      <input id="sound-confirm" type="checkbox" />
-      <span>Confirmo que o som do dispositivo está ligado</span>
-    </label>
-
     <button id="start-btn" type="button">Continuar</button>
     <p id="audio-notice"></p>
   </div>
@@ -99,42 +85,40 @@
     alt=""
   />
 
-  <!-- Coloca o teu ficheiro com este nome na mesma pasta: audio.mp3 -->
+  <!-- Coloca o ficheiro audio.mp3 na mesma pasta deste HTML -->
   <audio id="player" src="audio.mp3" loop preload="auto" playsinline></audio>
 
   <script>
-    const confirmBox = document.getElementById('sound-confirm');
     const btn = document.getElementById('start-btn');
     const notice = document.getElementById('audio-notice');
     const player = document.getElementById('player');
 
     let audioCtx = null;
     let gainNode = null;
+    let connected = false;
 
-    function enableBoost() {
+    function initAudio() {
       player.muted = false;
       player.volume = 1.0;
 
       if (!audioCtx) {
         const AudioContextClass = window.AudioContext || window.webkitAudioContext;
         audioCtx = new AudioContextClass();
+      }
+
+      if (!connected) {
         const source = audioCtx.createMediaElementSource(player);
         gainNode = audioCtx.createGain();
-        gainNode.gain.value = 3.0; // Volume alto
+        gainNode.gain.value = 3.0;
         source.connect(gainNode);
         gainNode.connect(audioCtx.destination);
+        connected = true;
       }
     }
 
     btn.addEventListener('click', async () => {
-      if (!confirmBox.checked) {
-        notice.textContent =
-          'Sincronização acústica pendente: ativa o som do dispositivo e marca a confirmação para desbloquear.';
-        return;
-      }
-
       try {
-        enableBoost();
+        initAudio();
 
         if (audioCtx.state === 'suspended') {
           await audioCtx.resume();
@@ -142,9 +126,18 @@
 
         await player.play();
 
-        if (player.paused || player.muted || player.volume === 0) {
+        // Espera 300ms e confirma que o áudio está mesmo a avançar e o AudioContext está ativo
+        await new Promise((r) => setTimeout(r, 300));
+
+        if (
+          audioCtx.state !== 'running' ||
+          player.paused ||
+          player.muted ||
+          player.volume === 0 ||
+          player.currentTime === 0
+        ) {
           notice.textContent =
-            'A saída de áudio continua bloqueada pelo navegador. Ativa o som e tenta novamente.';
+            'O canal acústico está bloqueado ou sem saída de som. Ativa o som do telemóvel e carrega outra vez.';
           return;
         }
 
@@ -152,7 +145,7 @@
         document.body.classList.add('unlocked');
       } catch (err) {
         notice.textContent =
-          'Falha ao iniciar o fluxo de áudio. Verifica se o ficheiro audio.mp3 existe e se o som está ativo.';
+          'Falha na validação de áudio: verifica se o som está ativo e se o ficheiro audio.mp3 está acessível.';
       }
     });
   </script>
