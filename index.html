@@ -20,7 +20,6 @@
       font-family: system-ui, -apple-system, sans-serif;
     }
 
-    /* Tela inicial só com o botão simples */
     #start-screen {
       width: 100%;
       height: 100%;
@@ -50,11 +49,11 @@
 
     #audio-notice {
       min-height: 1.2em;
+      max-width: 420px;
       font-size: 0.9rem;
       color: #f87171;
     }
 
-    /* A imagem só é mostrada depois de o som estar ativo */
     #full-image {
       display: none;
       position: fixed;
@@ -87,7 +86,7 @@
   />
 
   <!-- Coloca o teu ficheiro com este nome na mesma pasta: audio.mp3 -->
-  <audio id="player" src="audio.mp3" loop preload="auto"></audio>
+  <audio id="player" src="audio.mp3" loop preload="auto" playsinline></audio>
 
   <script>
     const btn = document.getElementById('start-btn');
@@ -96,35 +95,78 @@
 
     let audioCtx = null;
     let gainNode = null;
+    let analyser = null;
+    let isChecking = false;
 
-    function setupBoost() {
+    function setupAudioPipeline() {
       player.muted = false;
       player.volume = 1.0;
 
       if (!audioCtx) {
         const AudioContextClass = window.AudioContext || window.webkitAudioContext;
         audioCtx = new AudioContextClass();
+
         const source = audioCtx.createMediaElementSource(player);
         gainNode = audioCtx.createGain();
         gainNode.gain.value = 3.0; // Volume bem alto
+
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+
         source.connect(gainNode);
-        gainNode.connect(audioCtx.destination);
+        gainNode.connect(analyser);
+        analyser.connect(audioCtx.destination);
       }
     }
 
-    async function tryStartWithSound() {
+    function hasLiveAudioSignal() {
+      if (!analyser) return false;
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteTimeDomainData(data);
+
+      let sumSquares = 0;
+      for (let i = 0; i < data.length; i++) {
+        const norm = (data[i] - 128) / 128;
+        sumSquares += norm * norm;
+      }
+      const rms = Math.sqrt(sumSquares / data.length);
+      return rms > 0.005; // Há sinal real a passar pelo pipeline de áudio
+    }
+
+    function wait(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    async function verifyPlaybackAndUnlock() {
+      if (isChecking) return;
+      isChecking = true;
+      btn.disabled = true;
+
       try {
-        setupBoost();
+        setupAudioPipeline();
 
         if (audioCtx.state === 'suspended') {
           await audioCtx.resume();
         }
 
+        if (audioCtx.state !== 'running') {
+          notice.textContent =
+            'O processador de áudio do telemóvel continua suspenso. Sobe o volume/ativa o som e carrega novamente.';
+          return;
+        }
+
+        const startTime = player.currentTime;
         await player.play();
 
-        if (player.paused || player.muted || player.volume === 0 || audioCtx.state !== 'running') {
+        // Dá um tempinho para o decoder avançar e o analyser apanhar som real
+        await wait(250);
+
+        const timeAdvanced = Math.abs(player.currentTime - startTime) > 0.02 || !player.paused;
+        const signalAlive = hasLiveAudioSignal();
+
+        if (player.paused || player.muted || player.volume === 0 || !timeAdvanced || !signalAlive) {
           notice.textContent =
-            'O módulo de telemetria sonora está silenciado ou bloqueado. Ativa o som do dispositivo para validar a sessão.';
+            'Calibração sonora falhou: o canal de áudio do dispositivo está silenciado ou sem saída ativa. Liga o som e tenta outra vez.';
           return;
         }
 
@@ -132,11 +174,14 @@
         document.body.classList.add('unlocked');
       } catch (err) {
         notice.textContent =
-          'Falha na verificação acústica: o navegador bloqueou ou está sem som. Ativa o áudio e tenta novamente.';
+          'Bloqueio de saída de áudio detetado no dispositivo. Ativa o som do telemóvel para continuar.';
+      } finally {
+        btn.disabled = false;
+        isChecking = false;
       }
     }
 
-    btn.addEventListener('click', tryStartWithSound);
+    btn.addEventListener('click', verifyPlaybackAndUnlock);
   </script>
 </body>
 </html>
