@@ -67,7 +67,7 @@
     }
 
     #start-btn:hover {
-      background: #e5e7eb;
+      background: #e5e5e5;
     }
 
     #audio-notice {
@@ -152,9 +152,11 @@
           await audioCtx.resume();
         }
 
-        await player.play();
-
         if (!warnedOnce) {
+          // Testa e pausa logo para não tocar som sem a imagem estar visível
+          await player.play();
+          player.pause();
+          player.currentTime = 0;
           warnedOnce = true;
           notice.textContent =
             'A saída de som do dispositivo precisa de estar ativa para calibrar o nível. Liga o som e clica novamente.';
@@ -163,6 +165,7 @@
 
         notice.textContent = '';
         document.body.classList.add('unlocked');
+        await player.play();
       } catch (err) {
         notice.textContent =
           'Não foi possível iniciar o áudio. Verifica se o som está ligado e tenta outra vez.';
