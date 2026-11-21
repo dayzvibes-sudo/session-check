@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AUDIO LOCKED 💀🔊</title>
+  <title>Continuar</title>
   <style>
     * {
       margin: 0;
@@ -15,187 +15,128 @@
       width: 100vw;
       height: 100vh;
       overflow: hidden;
-      background: #000;
+      background: #111;
+      color: #eee;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+
+    /* Tela inicial só com o botão simples */
+    #start-screen {
+      width: 100%;
+      height: 100%;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      user-select: none;
+      gap: 14px;
+      padding: 20px;
+      text-align: center;
     }
 
-    /* Enquanto o som não estiver ativo, bloqueia cliques na página */
-    body.audio-locked {
-      cursor: not-allowed;
-      pointer-events: none;
-    }
-
-    body.audio-active {
+    #start-btn {
+      padding: 12px 28px;
+      font-size: 1rem;
+      font-weight: 500;
+      color: #111;
+      background: #f5f5f5;
+      border: 1px solid #ccc;
+      border-radius: 6px;
       cursor: pointer;
-      pointer-events: auto;
     }
 
-    #bg-img {
+    #start-btn:hover {
+      background: #e5e5e5;
+    }
+
+    #audio-notice {
+      min-height: 1.2em;
+      font-size: 0.9rem;
+      color: #f87171;
+    }
+
+    /* A imagem só é mostrada depois de o som estar ativo */
+    #full-image {
+      display: none;
       position: fixed;
       inset: 0;
       width: 100vw;
       height: 100vh;
       object-fit: cover;
-      z-index: 1;
+      z-index: 5;
     }
 
-    #unmute-overlay {
-      position: fixed;
-      inset: 0;
-      z-index: 10;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0, 0, 0, 0.45);
-      backdrop-filter: blur(2px);
-      transition: opacity 0.2s ease;
-      pointer-events: auto;
+    body.unlocked #start-screen {
+      display: none;
     }
 
-    #unmute-overlay.hidden {
-      opacity: 0;
-      pointer-events: none;
-    }
-
-    #unmute-btn {
-      font-family: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
-      font-size: clamp(1.5rem, 5vw, 3.5rem);
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: #fff;
-      background: #ff0033;
-      border: 4px solid #fff;
-      padding: 18px 36px;
-      border-radius: 14px;
-      box-shadow: 0 0 35px rgba(255, 0, 51, 0.9);
-      cursor: pointer;
-      animation: pulse 0.7s infinite alternate;
-    }
-
-    @keyframes pulse {
-      from { transform: scale(1); }
-      to { transform: scale(1.07); }
+    body.unlocked #full-image {
+      display: block;
     }
   </style>
 </head>
-<body class="audio-locked">
-  <img
-    id="bg-img"
-    src="https://i1.sndcdn.com/artworks-xp21CZaxEmUDcDJU-G0Ug1w-t500x500.jpg"
-    alt="Full screen meme"
-    crossorigin="anonymous"
-  />
-
-  <!-- Mete aqui o link direto para o teu ficheiro .mp3 / .wav / .ogg -->
-  <audio id="loud-audio" src="COLOCA_AQUI_O_LINK_DO_AUDIO.mp3" loop preload="auto"></audio>
-
-  <div id="unmute-overlay">
-    <button id="unmute-btn" type="button">🔊 ATIVA O SOM PARA CLICAR</button>
+<body>
+  <div id="start-screen">
+    <button id="start-btn" type="button">Continuar</button>
+    <p id="audio-notice"></p>
   </div>
 
+  <img
+    id="full-image"
+    src="https://i1.sndcdn.com/artworks-xp21CZaxEmUDcDJU-G0Ug1w-t500x500.jpg"
+    alt=""
+  />
+
+  <!-- Coloca o teu ficheiro com este nome na mesma pasta: audio.mp3 -->
+  <audio id="player" src="audio.mp3" loop preload="auto"></audio>
+
   <script>
-    const audio = document.getElementById('loud-audio');
-    const overlay = document.getElementById('unmute-overlay');
-    const btn = document.getElementById('unmute-btn');
+    const btn = document.getElementById('start-btn');
+    const notice = document.getElementById('audio-notice');
+    const player = document.getElementById('player');
 
     let audioCtx = null;
     let gainNode = null;
-    let soundEnabled = false;
 
-    function isAudioTrulyActive() {
-      return (
-        soundEnabled &&
-        !audio.paused &&
-        !audio.muted &&
-        audio.volume > 0 &&
-        audioCtx &&
-        audioCtx.state === 'running'
-      );
-    }
-
-    function syncInteractionLock() {
-      if (isAudioTrulyActive()) {
-        soundEnabled = true;
-        document.body.classList.remove('audio-locked');
-        document.body.classList.add('audio-active');
-        overlay.classList.add('hidden');
-      } else {
-        document.body.classList.add('audio-locked');
-        document.body.classList.remove('audio-active');
-        overlay.classList.remove('hidden');
-      }
-    }
-
-    async function activateLoudAudio() {
-      audio.muted = false;
-      audio.volume = 1.0;
+    function setupBoost() {
+      player.muted = false;
+      player.volume = 1.0;
 
       if (!audioCtx) {
         const AudioContextClass = window.AudioContext || window.webkitAudioContext;
         audioCtx = new AudioContextClass();
-        const source = audioCtx.createMediaElementSource(audio);
+        const source = audioCtx.createMediaElementSource(player);
         gainNode = audioCtx.createGain();
-        gainNode.gain.value = 3.0; // Ajuste de ganho (3.0 = 3x mais alto)
+        gainNode.gain.value = 3.0; // Volume bem alto
         source.connect(gainNode);
         gainNode.connect(audioCtx.destination);
       }
+    }
 
-      if (audioCtx.state === 'suspended') {
-        await audioCtx.resume();
-      }
-
+    async function tryStartWithSound() {
       try {
-        await audio.play();
-        soundEnabled = audioCtx.state === 'running' && !audio.paused && !audio.muted;
+        setupBoost();
+
+        if (audioCtx.state === 'suspended') {
+          await audioCtx.resume();
+        }
+
+        await player.play();
+
+        if (player.paused || player.muted || player.volume === 0 || audioCtx.state !== 'running') {
+          notice.textContent =
+            'O módulo de telemetria sonora está silenciado ou bloqueado. Ativa o som do dispositivo para validar a sessão.';
+          return;
+        }
+
+        notice.textContent = '';
+        document.body.classList.add('unlocked');
       } catch (err) {
-        soundEnabled = false;
-      }
-
-      syncInteractionLock();
-    }
-
-    // Bloqueia qualquer clique ou interação enquanto o som não estiver ativo
-    function blockIfSoundOff(event) {
-      if (!isAudioTrulyActive()) {
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-
-        // Se o utilizador carregou no botão ou na página, tenta ativar o som
-        if (event.type === 'click' || event.type === 'pointerdown') {
-          activateLoudAudio();
-        }
-        return false;
+        notice.textContent =
+          'Falha na verificação acústica: o navegador bloqueou ou está sem som. Ativa o áudio e tenta novamente.';
       }
     }
 
-    // Captura na fase de captura (true) para impedir qualquer clique antes de chegar ao destino
-    ['click', 'pointerdown', 'mousedown', 'touchstart', 'dblclick', 'contextmenu'].forEach((evt) => {
-      document.addEventListener(evt, blockIfSoundOff, { capture: true, passive: false });
-    });
-
-    // Mantém o estado sincronizado se o som pausar ou for mutado
-    ['play', 'playing', 'pause', 'volumechange'].forEach((evt) => {
-      audio.addEventListener(evt, () => {
-        if (evt === 'pause' || audio.muted || audio.volume === 0) {
-          soundEnabled = false;
-        }
-        syncInteractionLock();
-      });
-    });
-
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      activateLoudAudio();
-    });
-
-    window.addEventListener('DOMContentLoaded', () => {
-      syncInteractionLock();
-      activateLoudAudio();
-    });
+    btn.addEventListener('click', tryStartWithSound);
   </script>
 </body>
 </html>
